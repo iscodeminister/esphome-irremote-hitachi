@@ -30,7 +30,18 @@ void IRRemoteHitachiClimate::setup() {
     this->swing_mode = climate::CLIMATE_SWING_OFF;
   }
 
-  if (this->protocol_ == HITACHI_PROTOCOL_AC1) {
+  if (this->protocol_ == HITACHI_PROTOCOL_AC1 && this->ac1_model_ == R_LT0541_HTA_B) {
+    this->ac1_logical_power_ = this->mode != climate::CLIMATE_MODE_OFF;
+
+    // IE-06T2 Model B uses a toggle-only power command, not an absolute power state.
+    this->ac1_.setPower(false);
+    this->ac1_.setPowerToggle(false);
+
+    // IE-06T2 Model B has no swing capability.
+    this->ac1_.setSwingToggle(false);
+    this->ac1_.setSwingV(false);
+    this->ac1_.setSwingH(false);
+  } else if (this->protocol_ == HITACHI_PROTOCOL_AC1) {
     const bool power_on = this->mode != climate::CLIMATE_MODE_OFF;
     const bool swing_on = this->swing_mode == climate::CLIMATE_SWING_VERTICAL;
 
@@ -80,10 +91,12 @@ climate::ClimateTraits IRRemoteHitachiClimate::traits() {
       climate::CLIMATE_FAN_MEDIUM,
       climate::CLIMATE_FAN_HIGH,
   });
-  traits.set_supported_swing_modes({
-      climate::CLIMATE_SWING_OFF,
-      climate::CLIMATE_SWING_VERTICAL,
-  });
+  if (this->protocol_ != HITACHI_PROTOCOL_AC1 || this->ac1_model_ != R_LT0541_HTA_B) {
+    traits.set_supported_swing_modes({
+        climate::CLIMATE_SWING_OFF,
+        climate::CLIMATE_SWING_VERTICAL,
+    });
+  }
   if (this->protocol_ == HITACHI_PROTOCOL_AC1) {
     traits.set_visual_min_temperature(kHitachiAcMinTemp);
     traits.set_visual_max_temperature(kHitachiAcMaxTemp);
@@ -119,26 +132,35 @@ void IRRemoteHitachiClimate::transmit_state_() {
 }
 
 void IRRemoteHitachiClimate::transmit_ac1_state_() {
+  const bool is_ie06t2 = this->ac1_model_ == R_LT0541_HTA_B;
+  const bool requested_power = this->mode != climate::CLIMATE_MODE_OFF;
+  const bool power_changed = requested_power != this->ac1_logical_power_;
+
   switch (this->mode) {
     case climate::CLIMATE_MODE_COOL:
       this->ac1_.setMode(kHitachiAc1Cool);
-      this->ac1_.on();
+      if (!is_ie06t2)
+        this->ac1_.on();
       break;
     case climate::CLIMATE_MODE_HEAT:
       this->ac1_.setMode(kHitachiAc1Heat);
-      this->ac1_.on();
+      if (!is_ie06t2)
+        this->ac1_.on();
       break;
     case climate::CLIMATE_MODE_DRY:
       this->ac1_.setMode(kHitachiAc1Dry);
-      this->ac1_.on();
+      if (!is_ie06t2)
+        this->ac1_.on();
       break;
     case climate::CLIMATE_MODE_FAN_ONLY:
       this->ac1_.setMode(kHitachiAc1Fan);
-      this->ac1_.on();
+      if (!is_ie06t2)
+        this->ac1_.on();
       break;
     case climate::CLIMATE_MODE_OFF:
     default:
-      this->ac1_.off();
+      if (!is_ie06t2)
+        this->ac1_.off();
       break;
   }
 
@@ -166,7 +188,16 @@ void IRRemoteHitachiClimate::transmit_ac1_state_() {
       break;
   }
 
-  this->ac1_.setSwingV(this->swing_mode == climate::CLIMATE_SWING_VERTICAL);
+  if (is_ie06t2) {
+    // IE-06T2 Model B sends only a momentary power toggle and has no swing.
+    this->ac1_.setPower(false);
+    this->ac1_.setPowerToggle(power_changed);
+    this->ac1_.setSwingToggle(false);
+    this->ac1_.setSwingV(false);
+    this->ac1_.setSwingH(false);
+  } else {
+    this->ac1_.setSwingV(this->swing_mode == climate::CLIMATE_SWING_VERTICAL);
+  }
 
   auto *raw = this->ac1_.getRaw();
   ESP_LOGD(TAG,
@@ -176,6 +207,8 @@ void IRRemoteHitachiClimate::transmit_ac1_state_() {
            raw[12]);
 
   this->ac1_.send();
+  if (is_ie06t2)
+    this->ac1_logical_power_ = requested_power;
 }
 
 void IRRemoteHitachiClimate::transmit_ac344_state_() {

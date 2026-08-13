@@ -10,7 +10,7 @@ An ESPHome external climate component for Hitachi air conditioners using the
 - HITACHI_AC1 variants R_LT0541_HTA_A and R_LT0541_HTA_B
 - Cooling, heating, dry, fan-only, and off modes
 - Auto, low, medium, and high fan modes
-- Vertical swing control
+- Vertical swing control where supported (the IE-06T2 Model B has no swing)
 - Optional current-temperature sensor
 - Restores the climate state after reboot
 
