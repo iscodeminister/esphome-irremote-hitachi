@@ -33,5 +33,6 @@ climate:
   - platform: irremote_hitachi
     name: "${friendly_name}"
     pin: ${ir_pin}
+    carrier_duty_percent: 50%
     protocol: HITACHI_AC1
     model: R_LT0541_HTA_B

@@ -22,6 +22,9 @@ class IRRemoteHitachiClimate : public climate::Climate, public Component {
   void dump_config() override;
   void set_sensor(sensor::Sensor *sensor) { this->sensor_ = sensor; }
   void set_protocol(HitachiProtocol protocol) { this->protocol_ = protocol; }
+  void set_carrier_duty_percent(uint8_t carrier_duty_percent) {
+    this->carrier_duty_percent_ = carrier_duty_percent;
+  }
   void set_ac1_model_b(bool model_b) {
     this->ac1_model_ = model_b ? R_LT0541_HTA_B : R_LT0541_HTA_A;
   }
@@ -37,6 +40,7 @@ class IRRemoteHitachiClimate : public climate::Climate, public Component {
   IRHitachiAc344 ac344_;
   HitachiProtocol protocol_{HITACHI_PROTOCOL_AC344};
   hitachi_ac1_remote_model_t ac1_model_{R_LT0541_HTA_B};
+  uint8_t carrier_duty_percent_{50};
   sensor::Sensor *sensor_{nullptr};
 };
 

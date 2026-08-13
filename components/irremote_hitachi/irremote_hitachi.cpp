@@ -50,6 +50,7 @@ void IRRemoteHitachiClimate::dump_config() {
   } else {
     ESP_LOGCONFIG(TAG, "  Protocol: HITACHI_AC344");
   }
+  ESP_LOGCONFIG(TAG, "  Carrier duty: %u%%", this->carrier_duty_percent_);
   LOG_SENSOR("  ", "Temperature Sensor", this->sensor_);
 }
 

@@ -37,6 +37,7 @@ climate:
   - platform: irremote_hitachi
     name: "Hitachi AC"
     pin: GPIO4
+    carrier_duty_percent: 50%
     protocol: HITACHI_AC1
     model: R_LT0541_HTA_B
 ```
@@ -58,6 +59,7 @@ climate:
   - platform: irremote_hitachi
     name: "Hitachi AC"
     pin: GPIO4
+    carrier_duty_percent: 50%
     protocol: HITACHI_AC1
     model: R_LT0541_HTA_B
     sensor: room_temperature
@@ -71,6 +73,7 @@ configuration.
 | Option | Required | Default | Description |
 | --- | --- | --- | --- |
 | `pin` | Yes | — | GPIO connected to the infrared transmitter. |
+| `carrier_duty_percent` | No | `50%` | IR carrier duty cycle. IRremoteESP8266's Hitachi senders require `50%`. |
 | `protocol` | No | `HITACHI_AC344` | `HITACHI_AC1` or `HITACHI_AC344`. |
 | `model` | No | `R_LT0541_HTA_B` | AC1 remote variant: `R_LT0541_HTA_A` or `R_LT0541_HTA_B`. Ignored for AC344. |
 | `sensor` | No | — | Sensor whose state is exposed as the current temperature. |
