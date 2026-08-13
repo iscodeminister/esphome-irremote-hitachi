@@ -1,0 +1,35 @@
+substitutions:
+  device_name: hitachi-ac
+  friendly_name: Hitachi AC
+  ir_pin: GPIO4
+
+esphome:
+  name: ${device_name}
+  friendly_name: ${friendly_name}
+
+esp32:
+  board: nodemcu-32s
+  framework:
+    type: arduino
+
+logger:
+
+api:
+
+ota:
+  - platform: esphome
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+external_components:
+  - source: github://iscodeminister/esphome-irremote-hitachi
+    components: [irremote_hitachi]
+
+# IRremoteESP8266 drives this GPIO directly. Do not configure ESPHome's
+# remote_transmitter on the same pin.
+climate:
+  - platform: irremote_hitachi
+    name: "${friendly_name}"
+    pin: ${ir_pin}
