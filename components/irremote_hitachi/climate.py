@@ -24,10 +24,10 @@ PROTOCOLS = {
     "HITACHI_AC344": HitachiProtocol.HITACHI_PROTOCOL_AC344,
 }
 
-AC1_MODELS = {
-    "R_LT0541_HTA_A": 0,
-    "R_LT0541_HTA_B": 1,
-}
+AC1_MODELS = [
+    "R_LT0541_HTA_A",
+    "R_LT0541_HTA_B",
+]
 
 CONFIG_SCHEMA = cv.All(
     climate.climate_schema(IRRemoteHitachiClimate)
@@ -41,8 +41,8 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_PROTOCOL, default="HITACHI_AC344"): cv.enum(
                 PROTOCOLS, upper=True
             ),
-            cv.Optional(CONF_MODEL, default="R_LT0541_HTA_B"): cv.enum(
-                AC1_MODELS, upper=True
+            cv.Optional(CONF_MODEL, default="R_LT0541_HTA_B"): cv.one_of(
+                *AC1_MODELS, upper=True
             ),
         }
     )
@@ -58,7 +58,7 @@ async def to_code(config):
 
     cg.add(var.set_protocol(config[CONF_PROTOCOL]))
     cg.add(var.set_carrier_duty_percent(config[CONF_CARRIER_DUTY_PERCENT]))
-    cg.add(var.set_ac1_model_b(config[CONF_MODEL] == AC1_MODELS["R_LT0541_HTA_B"]))
+    cg.add(var.set_ac1_model_b(config[CONF_MODEL] == "R_LT0541_HTA_B"))
 
     if CONF_SENSOR in config:
         sens = await cg.get_variable(config[CONF_SENSOR])
