@@ -37,6 +37,7 @@ class IRRemoteHitachiClimate : public climate::Climate, public Component {
   IRHitachiAc344 ac344_;
   HitachiProtocol protocol_{HITACHI_PROTOCOL_AC344};
   hitachi_ac1_remote_model_t ac1_model_{R_LT0541_HTA_B};
+  bool ac1_logical_power_{false};
   sensor::Sensor *sensor_{nullptr};
 };
 
