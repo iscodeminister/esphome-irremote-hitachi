@@ -11,8 +11,14 @@ namespace irremote_hitachi {
 static const char *const TAG = "irremote_hitachi.climate";
 
 void IRRemoteHitachiClimate::setup() {
-  this->ac_.begin();
-  this->ac_.stateReset();
+  if (this->protocol_ == HITACHI_PROTOCOL_AC1) {
+    this->ac1_.begin();
+    this->ac1_.stateReset();
+    this->ac1_.setModel(this->ac1_model_);
+  } else {
+    this->ac344_.begin();
+    this->ac344_.stateReset();
+  }
 
   auto restore = this->restore_state_();
   if (restore.has_value()) {
@@ -36,8 +42,14 @@ void IRRemoteHitachiClimate::setup() {
 }
 
 void IRRemoteHitachiClimate::dump_config() {
-  LOG_CLIMATE("IRremoteESP8266 Hitachi AC344", "Hitachi AC", this);
-  ESP_LOGCONFIG(TAG, "  Protocol: HITACHI_AC344");
+  LOG_CLIMATE("IRremoteESP8266 Hitachi", "Hitachi AC", this);
+  if (this->protocol_ == HITACHI_PROTOCOL_AC1) {
+    ESP_LOGCONFIG(TAG, "  Protocol: HITACHI_AC1");
+    ESP_LOGCONFIG(TAG, "  Remote variant: %s",
+                  this->ac1_model_ == R_LT0541_HTA_B ? "R_LT0541_HTA_B" : "R_LT0541_HTA_A");
+  } else {
+    ESP_LOGCONFIG(TAG, "  Protocol: HITACHI_AC344");
+  }
   LOG_SENSOR("  ", "Temperature Sensor", this->sensor_);
 }
 
@@ -60,11 +72,16 @@ climate::ClimateTraits IRRemoteHitachiClimate::traits() {
       climate::CLIMATE_SWING_OFF,
       climate::CLIMATE_SWING_VERTICAL,
   });
-  traits.set_visual_min_temperature(kHitachiAc344MinTemp);
-  traits.set_visual_max_temperature(kHitachiAc344MaxTemp);
+  if (this->protocol_ == HITACHI_PROTOCOL_AC1) {
+    traits.set_visual_min_temperature(kHitachiAcMinTemp);
+    traits.set_visual_max_temperature(kHitachiAcMaxTemp);
+  } else {
+    traits.set_visual_min_temperature(kHitachiAc344MinTemp);
+    traits.set_visual_max_temperature(kHitachiAc344MaxTemp);
+  }
   traits.set_visual_target_temperature_step(1.0f);
   if (this->sensor_ != nullptr)
-    traits.add_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE);
+    traits.set_supports_current_temperature(true);
   return traits;
 }
 
@@ -83,26 +100,85 @@ void IRRemoteHitachiClimate::control(const climate::ClimateCall &call) {
 }
 
 void IRRemoteHitachiClimate::transmit_state_() {
+  if (this->protocol_ == HITACHI_PROTOCOL_AC1)
+    this->transmit_ac1_state_();
+  else
+    this->transmit_ac344_state_();
+}
+
+void IRRemoteHitachiClimate::transmit_ac1_state_() {
   switch (this->mode) {
     case climate::CLIMATE_MODE_COOL:
-      this->ac_.setMode(kHitachiAc344Cool);
-      this->ac_.on();
+      this->ac1_.setMode(kHitachiAc1Cool);
+      this->ac1_.on();
       break;
     case climate::CLIMATE_MODE_HEAT:
-      this->ac_.setMode(kHitachiAc344Heat);
-      this->ac_.on();
+      this->ac1_.setMode(kHitachiAc1Heat);
+      this->ac1_.on();
       break;
     case climate::CLIMATE_MODE_DRY:
-      this->ac_.setMode(kHitachiAc344Dry);
-      this->ac_.on();
+      this->ac1_.setMode(kHitachiAc1Dry);
+      this->ac1_.on();
       break;
     case climate::CLIMATE_MODE_FAN_ONLY:
-      this->ac_.setMode(kHitachiAc344Fan);
-      this->ac_.on();
+      this->ac1_.setMode(kHitachiAc1Fan);
+      this->ac1_.on();
       break;
     case climate::CLIMATE_MODE_OFF:
     default:
-      this->ac_.off();
+      this->ac1_.off();
+      break;
+  }
+
+  if (!std::isnan(this->target_temperature)) {
+    auto temperature = static_cast<uint8_t>(std::lround(this->target_temperature));
+    temperature = std::max<uint8_t>(temperature, kHitachiAcMinTemp);
+    temperature = std::min<uint8_t>(temperature, kHitachiAcMaxTemp);
+    this->target_temperature = temperature;
+    this->ac1_.setTemp(temperature);
+  }
+
+  switch (this->fan_mode.value_or(climate::CLIMATE_FAN_AUTO)) {
+    case climate::CLIMATE_FAN_LOW:
+      this->ac1_.setFan(kHitachiAc1FanLow);
+      break;
+    case climate::CLIMATE_FAN_MEDIUM:
+      this->ac1_.setFan(kHitachiAc1FanMed);
+      break;
+    case climate::CLIMATE_FAN_HIGH:
+      this->ac1_.setFan(kHitachiAc1FanHigh);
+      break;
+    case climate::CLIMATE_FAN_AUTO:
+    default:
+      this->ac1_.setFan(kHitachiAc1FanAuto);
+      break;
+  }
+
+  this->ac1_.setSwingV(this->swing_mode == climate::CLIMATE_SWING_VERTICAL);
+  this->ac1_.send();
+}
+
+void IRRemoteHitachiClimate::transmit_ac344_state_() {
+  switch (this->mode) {
+    case climate::CLIMATE_MODE_COOL:
+      this->ac344_.setMode(kHitachiAc344Cool);
+      this->ac344_.on();
+      break;
+    case climate::CLIMATE_MODE_HEAT:
+      this->ac344_.setMode(kHitachiAc344Heat);
+      this->ac344_.on();
+      break;
+    case climate::CLIMATE_MODE_DRY:
+      this->ac344_.setMode(kHitachiAc344Dry);
+      this->ac344_.on();
+      break;
+    case climate::CLIMATE_MODE_FAN_ONLY:
+      this->ac344_.setMode(kHitachiAc344Fan);
+      this->ac344_.on();
+      break;
+    case climate::CLIMATE_MODE_OFF:
+    default:
+      this->ac344_.off();
       break;
   }
 
@@ -111,28 +187,27 @@ void IRRemoteHitachiClimate::transmit_state_() {
     temperature = std::max<uint8_t>(temperature, kHitachiAc344MinTemp);
     temperature = std::min<uint8_t>(temperature, kHitachiAc344MaxTemp);
     this->target_temperature = temperature;
-    this->ac_.setTemp(temperature);
+    this->ac344_.setTemp(temperature);
   }
 
   switch (this->fan_mode.value_or(climate::CLIMATE_FAN_AUTO)) {
     case climate::CLIMATE_FAN_LOW:
-      this->ac_.setFan(kHitachiAc344FanLow);
+      this->ac344_.setFan(kHitachiAc344FanLow);
       break;
     case climate::CLIMATE_FAN_MEDIUM:
-      this->ac_.setFan(kHitachiAc344FanMedium);
+      this->ac344_.setFan(kHitachiAc344FanMedium);
       break;
     case climate::CLIMATE_FAN_HIGH:
-      this->ac_.setFan(kHitachiAc344FanHigh);
+      this->ac344_.setFan(kHitachiAc344FanHigh);
       break;
     case climate::CLIMATE_FAN_AUTO:
     default:
-      this->ac_.setFan(kHitachiAc344FanAuto);
+      this->ac344_.setFan(kHitachiAc344FanAuto);
       break;
   }
 
-  this->ac_.setSwingV(this->swing_mode == climate::CLIMATE_SWING_VERTICAL);
-
-  this->ac_.send();
+  this->ac344_.setSwingV(this->swing_mode == climate::CLIMATE_SWING_VERTICAL);
+  this->ac344_.send();
 }
 
 }  // namespace irremote_hitachi

@@ -1,11 +1,13 @@
 # ESPHome IRremote Hitachi
 
 An ESPHome external climate component for Hitachi air conditioners using the
-`HITACHI_AC344` protocol from
+`HITACHI_AC1` and `HITACHI_AC344` protocols from
 [IRremoteESP8266](https://github.com/crankyoldgit/IRremoteESP8266).
 
 ## Features
 
+- Selectable HITACHI_AC1 or HITACHI_AC344 protocol
+- HITACHI_AC1 variants R_LT0541_HTA_A and R_LT0541_HTA_B
 - Cooling, heating, dry, fan-only, and off modes
 - Auto, low, medium, and high fan modes
 - Vertical swing control
@@ -23,6 +25,9 @@ not configure ESPHome's `remote_transmitter` on the same pin.
 
 ## Usage
 
+For a 104-bit `HITACHI_AC1` remote using model bits `0b01`, configure variant
+`R_LT0541_HTA_B`:
+
 ```yaml
 external_components:
   - source: github://iscodeminister/esphome-irremote-hitachi
@@ -32,6 +37,18 @@ climate:
   - platform: irremote_hitachi
     name: "Hitachi AC"
     pin: GPIO4
+    protocol: HITACHI_AC1
+    model: R_LT0541_HTA_B
+```
+
+For an AC using `HITACHI_AC344`:
+
+```yaml
+climate:
+  - platform: irremote_hitachi
+    name: "Hitachi AC"
+    pin: GPIO4
+    protocol: HITACHI_AC344
 ```
 
 To report the current room temperature, provide an ESPHome sensor ID:
@@ -41,6 +58,8 @@ climate:
   - platform: irremote_hitachi
     name: "Hitachi AC"
     pin: GPIO4
+    protocol: HITACHI_AC1
+    model: R_LT0541_HTA_B
     sensor: room_temperature
 ```
 
@@ -49,10 +68,12 @@ configuration.
 
 ## Configuration
 
-| Option | Required | Description |
-| --- | --- | --- |
-| `pin` | Yes | GPIO connected to the infrared transmitter. |
-| `sensor` | No | Sensor whose state is exposed as the current temperature. |
+| Option | Required | Default | Description |
+| --- | --- | --- | --- |
+| `pin` | Yes | — | GPIO connected to the infrared transmitter. |
+| `protocol` | No | `HITACHI_AC344` | `HITACHI_AC1` or `HITACHI_AC344`. |
+| `model` | No | `R_LT0541_HTA_B` | AC1 remote variant: `R_LT0541_HTA_A` or `R_LT0541_HTA_B`. Ignored for AC344. |
+| `sensor` | No | — | Sensor whose state is exposed as the current temperature. |
 
 All standard ESPHome climate options are also supported.
 
