@@ -30,6 +30,18 @@ void IRRemoteHitachiClimate::setup() {
     this->swing_mode = climate::CLIMATE_SWING_OFF;
   }
 
+  if (this->protocol_ == HITACHI_PROTOCOL_AC1) {
+    const bool power_on = this->mode != climate::CLIMATE_MODE_OFF;
+    const bool swing_on = this->swing_mode == climate::CLIMATE_SWING_VERTICAL;
+
+    this->ac1_.setPower(power_on);
+    this->ac1_.setSwingV(swing_on);
+
+    // Initialization is state synchronization, not a remote-control action.
+    this->ac1_.setPowerToggle(false);
+    this->ac1_.setSwingToggle(false);
+  }
+
   if (this->sensor_ != nullptr) {
     this->sensor_->add_on_state_callback([this](float state) {
       this->current_temperature = state;
@@ -50,7 +62,6 @@ void IRRemoteHitachiClimate::dump_config() {
   } else {
     ESP_LOGCONFIG(TAG, "  Protocol: HITACHI_AC344");
   }
-  ESP_LOGCONFIG(TAG, "  Carrier duty: %u%%", this->carrier_duty_percent_);
   LOG_SENSOR("  ", "Temperature Sensor", this->sensor_);
 }
 
@@ -156,6 +167,14 @@ void IRRemoteHitachiClimate::transmit_ac1_state_() {
   }
 
   this->ac1_.setSwingV(this->swing_mode == climate::CLIMATE_SWING_VERTICAL);
+
+  auto *raw = this->ac1_.getRaw();
+  ESP_LOGD(TAG,
+           "AC1 TX: %02X %02X %02X %02X %02X %02X %02X "
+           "%02X %02X %02X %02X %02X %02X",
+           raw[0], raw[1], raw[2], raw[3], raw[4], raw[5], raw[6], raw[7], raw[8], raw[9], raw[10], raw[11],
+           raw[12]);
+
   this->ac1_.send();
 }
 
