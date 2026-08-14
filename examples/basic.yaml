@@ -16,6 +16,8 @@ remote_transmitter:
   id: ir_transmitter
   pin: ${ir_pin}
   carrier_duty_percent: 50%
+  # AC1 frames are long; blocking mode avoids RMT underruns while streaming.
+  non_blocking: false
 
 logger:
 
