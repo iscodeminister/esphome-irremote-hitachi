@@ -10,13 +10,21 @@ namespace irremote_hitachi {
 
 static const char *const TAG = "irremote_hitachi.climate";
 
+static constexpr uint32_t HITACHI_CARRIER_FREQUENCY = 38000;
+static constexpr uint32_t HITACHI_AC1_HEADER_MARK = 3400;
+static constexpr uint32_t HITACHI_AC1_HEADER_SPACE = 3400;
+static constexpr uint32_t HITACHI_AC344_HEADER_MARK = 3300;
+static constexpr uint32_t HITACHI_AC344_HEADER_SPACE = 1700;
+static constexpr uint32_t HITACHI_BIT_MARK = 400;
+static constexpr uint32_t HITACHI_ONE_SPACE = 1250;
+static constexpr uint32_t HITACHI_ZERO_SPACE = 500;
+static constexpr uint32_t HITACHI_MIN_GAP = 100000;
+
 void IRRemoteHitachiClimate::setup() {
   if (this->protocol_ == HITACHI_PROTOCOL_AC1) {
-    this->ac1_.begin();
     this->ac1_.stateReset();
     this->ac1_.setModel(this->ac1_model_);
   } else {
-    this->ac344_.begin();
     this->ac344_.stateReset();
   }
 
@@ -206,7 +214,9 @@ void IRRemoteHitachiClimate::transmit_ac1_state_() {
            raw[0], raw[1], raw[2], raw[3], raw[4], raw[5], raw[6], raw[7], raw[8], raw[9], raw[10], raw[11],
            raw[12]);
 
-  this->ac1_.send();
+  this->transmit_ac1_frame_(raw);
+  this->ac1_.setPowerToggle(false);
+  this->ac1_.setSwingToggle(false);
   if (is_ie06t2)
     this->ac1_logical_power_ = requested_power;
 }
@@ -260,7 +270,41 @@ void IRRemoteHitachiClimate::transmit_ac344_state_() {
   }
 
   this->ac344_.setSwingV(this->swing_mode == climate::CLIMATE_SWING_VERTICAL);
-  this->ac344_.send();
+  this->transmit_ac344_frame_(this->ac344_.getRaw());
+}
+
+void IRRemoteHitachiClimate::transmit_ac1_frame_(const uint8_t *raw) {
+  auto transmit = this->transmitter_->transmit();
+  auto *data = transmit.get_data();
+  data->set_carrier_frequency(HITACHI_CARRIER_FREQUENCY);
+  data->reserve(2 + kHitachiAc1StateLength * 16 + 2);
+
+  data->item(HITACHI_AC1_HEADER_MARK, HITACHI_AC1_HEADER_SPACE);
+  for (uint16_t i = 0; i < kHitachiAc1StateLength; i++) {
+    for (uint8_t mask = 0x80; mask != 0; mask >>= 1) {
+      data->item(HITACHI_BIT_MARK, raw[i] & mask ? HITACHI_ONE_SPACE : HITACHI_ZERO_SPACE);
+    }
+  }
+  data->item(HITACHI_BIT_MARK, HITACHI_MIN_GAP);
+
+  transmit.perform();
+}
+
+void IRRemoteHitachiClimate::transmit_ac344_frame_(const uint8_t *raw) {
+  auto transmit = this->transmitter_->transmit();
+  auto *data = transmit.get_data();
+  data->set_carrier_frequency(HITACHI_CARRIER_FREQUENCY);
+  data->reserve(2 + kHitachiAc344StateLength * 16 + 2);
+
+  data->item(HITACHI_AC344_HEADER_MARK, HITACHI_AC344_HEADER_SPACE);
+  for (uint16_t i = 0; i < kHitachiAc344StateLength; i++) {
+    for (uint8_t bit = 0; bit < 8; bit++) {
+      data->item(HITACHI_BIT_MARK, raw[i] & (1U << bit) ? HITACHI_ONE_SPACE : HITACHI_ZERO_SPACE);
+    }
+  }
+  data->item(HITACHI_BIT_MARK, HITACHI_MIN_GAP);
+
+  transmit.perform();
 }
 
 }  // namespace irremote_hitachi

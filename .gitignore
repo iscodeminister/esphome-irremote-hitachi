@@ -4,3 +4,4 @@ __pycache__/
 .vscode/
 .DS_Store
 secrets.yaml
+hitachi_ac1_decode.py

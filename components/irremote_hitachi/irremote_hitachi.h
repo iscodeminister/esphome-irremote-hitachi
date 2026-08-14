@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/components/climate/climate.h"
+#include "esphome/components/remote_base/remote_base.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/core/component.h"
 
@@ -14,9 +15,11 @@ enum HitachiProtocol : uint8_t {
   HITACHI_PROTOCOL_AC344,
 };
 
-class IRRemoteHitachiClimate : public climate::Climate, public Component {
+class IRRemoteHitachiClimate : public climate::Climate,
+                               public Component,
+                               public remote_base::RemoteTransmittable {
  public:
-  explicit IRRemoteHitachiClimate(uint8_t pin) : ac1_(pin), ac344_(pin) {}
+  IRRemoteHitachiClimate() : ac1_(0), ac344_(0) {}
 
   void setup() override;
   void dump_config() override;
@@ -32,6 +35,8 @@ class IRRemoteHitachiClimate : public climate::Climate, public Component {
   void transmit_state_();
   void transmit_ac1_state_();
   void transmit_ac344_state_();
+  void transmit_ac1_frame_(const uint8_t *raw);
+  void transmit_ac344_frame_(const uint8_t *raw);
 
   IRHitachiAc1 ac1_;
   IRHitachiAc344 ac344_;

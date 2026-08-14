@@ -12,6 +12,11 @@ esp32:
   framework:
     type: arduino
 
+remote_transmitter:
+  id: ir_transmitter
+  pin: ${ir_pin}
+  carrier_duty_percent: 50%
+
 logger:
 
 api:
@@ -27,11 +32,9 @@ external_components:
   - source: github://iscodeminister/esphome-irremote-hitachi
     components: [irremote_hitachi]
 
-# IRremoteESP8266 drives this GPIO directly. Do not configure ESPHome's
-# remote_transmitter on the same pin.
 climate:
   - platform: irremote_hitachi
     name: "${friendly_name}"
-    pin: ${ir_pin}
+    transmitter_id: ir_transmitter
     protocol: HITACHI_AC1
     model: R_LT0541_HTA_B
