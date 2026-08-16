@@ -1,0 +1,51 @@
+substitutions:
+  device_name: hitachi-ac-power-feedback
+  friendly_name: Hitachi AC with power feedback
+  ir_pin: GPIO4
+
+esphome:
+  name: ${device_name}
+  friendly_name: ${friendly_name}
+
+esp32:
+  board: nodemcu-32s
+  framework:
+    type: arduino
+
+remote_transmitter:
+  id: ir_transmitter
+  pin: ${ir_pin}
+  carrier_duty_percent: 50%
+  non_blocking: false
+
+logger:
+
+api:
+
+ota:
+  - platform: esphome
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+external_components:
+  - source: github://iscodeminister/esphome-irremote-hitachi
+    components: [irremote_hitachi]
+
+sensor:
+  - platform: homeassistant
+    id: ac_power
+    entity_id: sensor.living_room_ac_power
+
+climate:
+  - platform: irremote_hitachi
+    name: "${friendly_name}"
+    transmitter_id: ir_transmitter
+    protocol: HITACHI_AC1
+    model: R_LT0541_HTA_B
+    power_sensor: ac_power
+    power_on_threshold: 15
+    power_off_threshold: 5
+    power_on_delay: 3s
+    power_off_delay: 30s

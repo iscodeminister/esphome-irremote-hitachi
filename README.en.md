@@ -56,6 +56,7 @@ as a claim that every listed unit has been tested with this project.
 - Supports auto, low, medium, and high fan speeds
 - Provides vertical swing when supported by the selected protocol and model
 - Can display an ESPHome temperature sensor as the current room temperature
+- Can optionally synchronize Model B power state from an ESPHome power sensor
 - Restores the climate state after ESPHome restarts
 - Sends 38 kHz infrared signals through ESPHome's `remote_transmitter`
 
@@ -99,6 +100,59 @@ For Model B, this component therefore:
 The air conditioner does not report its actual power state. If it is operated with the
 original remote or another controller, its state can still get out of sync with ESPHome
 and may need to be realigned manually.
+
+### Power-meter assisted power state
+
+Hitachi AC1 remotes such as `R_LT0541_HTA_B` use a power-toggle command rather than an absolute ON/OFF command. Because infrared communication is one-way, using the original remote or a missed IR transmission can cause ESPHome's assumed power state to become incorrect.
+
+An optional power sensor can be used to synchronize the actual ON/OFF state. This feedback option applies to the toggle-only AC1 Model B path:
+
+```yaml
+sensor:
+  - platform: homeassistant
+    id: ac_power
+    entity_id: sensor.living_room_ac_power
+
+climate:
+  - platform: irremote_hitachi
+    name: "Hitachi AC"
+    transmitter_id: ir_transmitter
+    protocol: HITACHI_AC1
+    model: R_LT0541_HTA_B
+    power_sensor: ac_power
+    power_on_threshold: 15
+    power_off_threshold: 5
+    power_on_delay: 3s
+    power_off_delay: 30s
+```
+
+Configuration options:
+
+- `power_sensor`: an existing ESPHome `sensor::Sensor` representing the AC's power in watts.
+- `power_on_threshold`: the minimum wattage that can be considered ON. This is required when `power_sensor` is configured.
+- `power_off_threshold`: the maximum wattage that can be considered OFF. This is required when `power_sensor` is configured.
+- `power_on_delay`: how long the reading must remain at or above the ON threshold before ON is confirmed. The default is `3s`.
+- `power_off_delay`: how long the reading must remain at or below the OFF threshold before OFF is confirmed. The default is `30s`.
+
+The thresholds use hysteresis. Readings between `power_off_threshold` and `power_on_threshold` keep the last confirmed state, so the component does not repeatedly switch state around one boundary. The OFF delay is normally longer because a real AC can briefly draw little power during startup, fan changes, or control transitions.
+
+Calibrate the thresholds from the complete appliance power profile:
+
+1. Measure the AC while it is OFF or in standby.
+2. Measure it while the indoor unit is actually ON, including periods when the compressor is idle.
+3. Put `power_off_threshold` above the maximum OFF/standby reading and `power_on_threshold` below the minimum reading while the AC is ON.
+
+Do not choose the ON/OFF thresholds from compressor power consumption. This component detects whether the air conditioner itself is ON, not whether its compressor is currently running. For example, an illustrative profile might be:
+
+```text
+AC OFF/standby: 1–3 W
+AC ON with indoor fan running: 20–40 W
+compressor running: 700 W+
+```
+
+A possible configuration for that example is `power_off_threshold: 5` and `power_on_threshold: 15`; these values are examples, not universal defaults. A non-inverter compressor can stop after reaching the target temperature while the indoor fan and control electronics remain powered. Choosing thresholds such as `power_off_threshold: 300` and `power_on_threshold: 500` could therefore report the AC as OFF whenever the compressor cycles off.
+
+The power sensor should ideally measure only the air conditioner's circuit or device. If it includes unrelated loads, another appliance can keep the reading above the ON threshold and cause incorrect state detection. Meter feedback synchronizes only ON/OFF; it does not infer cool, dry, fan, heat, temperature, fan speed, or swing settings. If the sensor is omitted, the component continues to use its existing logical toggle behavior unchanged.
 
 ### Model B has no swing control
 
@@ -225,6 +279,11 @@ mean that the air conditioner reports its room temperature over infrared.
 | `protocol` | No | `HITACHI_AC344` | Either `HITACHI_AC1` or `HITACHI_AC344`. |
 | `model` | No | `R_LT0541_HTA_B` | AC1 remote model: `R_LT0541_HTA_A` or `R_LT0541_HTA_B`. Ignored for AC344. |
 | `sensor` | No | — | ESPHome sensor ID used to display the current room temperature. |
+| `power_sensor` | No | — | ESPHome power sensor ID for Model B ON/OFF synchronization. |
+| `power_on_threshold` | With `power_sensor` | — | Required wattage threshold for confirming ON; must be greater than `power_off_threshold`. |
+| `power_off_threshold` | With `power_sensor` | — | Required wattage threshold for confirming OFF; must be non-negative. |
+| `power_on_delay` | No | `3s` | Time above the ON threshold before ON is confirmed. |
+| `power_off_delay` | No | `30s` | Time below the OFF threshold before OFF is confirmed. |
 
 Standard ESPHome Climate options are also available. The target temperature uses 1 °C
 steps, and its allowed range depends on the selected protocol.
@@ -254,8 +313,8 @@ Once the protocol is confirmed, select the matching `protocol` and `model`.
 - **AC1 frames are incomplete:** Set `remote_transmitter.non_blocking` to `false` first.
   AC1 frames are long, and the complete example already uses this setting.
 - **Model B shows the opposite power state:** Model B can only send a toggle and cannot
-  read the actual power state from the unit. If another remote has been used, realign
-  the state shown in ESPHome with the unit's actual state.
+  read the actual power state from the unit. Configure the optional power-meter feedback
+  for automatic synchronization, or realign the state shown in ESPHome manually.
 - **Platform validation fails:** This component requires an ESP32, the Arduino framework,
   and a configured `remote_transmitter`.
 

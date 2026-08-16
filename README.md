@@ -48,6 +48,7 @@
 - 支援自動、低速、中速與高速風量
 - 在所選協定與型號支援時提供上下擺風控制
 - 可使用 ESPHome 溫度感測器顯示目前室溫
+- 可選擇使用 ESPHome 功率感測器同步 Model B 的電源狀態
 - ESPHome 重新啟動後可還原 climate 狀態
 - 透過 ESPHome `remote_transmitter` 發送 38 kHz 紅外線訊號
 
@@ -89,6 +90,59 @@ ESPHome 顯示的邏輯狀態不同步。
 
 由於冷氣不會回傳實際電源狀態，如果曾使用原廠遙控器或其他控制器操作冷氣，ESPHome 的
 邏輯狀態仍可能與實機不同步，此時需要手動將兩者重新對齊。
+
+### 使用功率計輔助同步電源狀態
+
+`R_LT0541_HTA_B` 等 Hitachi AC1 遙控器使用的是電源 toggle 指令，而不是絕對的開／關指令。由於紅外線是單向通訊，使用原廠遙控器或紅外線傳送失敗，都可能讓 ESPHome 所假設的電源狀態與實機不同步。
+
+可選擇設定功率感測器來同步實際的開／關狀態。這項回饋功能只適用於採用 toggle 電源控制的 AC1 Model B：
+
+```yaml
+sensor:
+  - platform: homeassistant
+    id: ac_power
+    entity_id: sensor.living_room_ac_power
+
+climate:
+  - platform: irremote_hitachi
+    name: "日立冷氣"
+    transmitter_id: ir_transmitter
+    protocol: HITACHI_AC1
+    model: R_LT0541_HTA_B
+    power_sensor: ac_power
+    power_on_threshold: 15
+    power_off_threshold: 5
+    power_on_delay: 3s
+    power_off_delay: 30s
+```
+
+設定選項如下：
+
+- `power_sensor`：既有的 ESPHome `sensor::Sensor` ID，內容應為冷氣功率（瓦特）。
+- `power_on_threshold`：判定為開機所需的最低功率；設定 `power_sensor` 時必填。
+- `power_off_threshold`：判定為關機所允許的最高功率；設定 `power_sensor` 時必填。
+- `power_on_delay`：功率持續高於或等於開機門檻多久後才確認開機，預設為 `3s`。
+- `power_off_delay`：功率持續低於或等於關機門檻多久後才確認關機，預設為 `30s`。
+
+兩個門檻會形成 hysteresis（遲滯區）。當功率介於 `power_off_threshold` 與 `power_on_threshold` 之間時，會維持上一次確認的狀態，不會在單一門檻附近反覆切換。關機延遲通常應較長，因為冷氣啟動、風速變化或控制狀態轉換時，功率可能短暫降低。
+
+請依整台冷氣的完整功率曲線校準門檻：
+
+1. 測量冷氣關機或待機時的功率。
+2. 測量室內機確實開啟時的功率，包括壓縮機停止運轉的時段。
+3. 將 `power_off_threshold` 設在最高關機／待機功率之上，並將 `power_on_threshold` 設在冷氣開啟時最低功率之下。
+
+不要使用壓縮機功率來設定開／關門檻。本功能判斷的是整台冷氣是否開機，不是壓縮機當下是否運轉。例如，以下只是示意性的功率範圍：
+
+```text
+冷氣關機／待機：1–3 W
+冷氣開機且室內風扇運轉：20–40 W
+壓縮機運轉：700 W 以上
+```
+
+對上述示例，可以使用 `power_off_threshold: 5` 與 `power_on_threshold: 15`；這些只是示例，不是所有冷氣都適用的固定值。定頻冷氣在達到目標溫度後，壓縮機可能停止，但室內風扇與控制電路仍然通電。若使用 `power_off_threshold: 300` 與 `power_on_threshold: 500`，壓縮機每次停止時都可能被誤判為關機。
+
+功率感測器最好只量測冷氣本身的裝置或專用電路。若同一個感測器也量測其他負載，其他家電可能讓功率持續高於開機門檻，造成錯誤判斷。功率回饋只同步開／關，不會從功率推論冷氣模式、目標溫度、風速或擺風狀態。未設定 `power_sensor` 時，元件會維持原本的邏輯 toggle 行為。
 
 ### Model B 沒有擺風控制
 
@@ -209,6 +263,11 @@ climate:
 | `protocol` | 否 | `HITACHI_AC344` | 可選擇 `HITACHI_AC1` 或 `HITACHI_AC344`。 |
 | `model` | 否 | `R_LT0541_HTA_B` | AC1 遙控器型號；可選擇 `R_LT0541_HTA_A` 或 `R_LT0541_HTA_B`。AC344 會忽略此設定。 |
 | `sensor` | 否 | — | 用來顯示目前室溫的 ESPHome 感測器 ID。 |
+| `power_sensor` | 否 | — | 用於同步 Model B 開／關狀態的 ESPHome 功率感測器 ID。 |
+| `power_on_threshold` | 設定 `power_sensor` 時必填 | — | 確認開機所需的功率門檻；必須大於 `power_off_threshold`。 |
+| `power_off_threshold` | 設定 `power_sensor` 時必填 | — | 確認關機所允許的功率門檻；不可為負值。 |
+| `power_on_delay` | 否 | `3s` | 功率高於或等於開機門檻多久後確認開機。 |
+| `power_off_delay` | 否 | `30s` | 功率低於或等於關機門檻多久後確認關機。 |
 
 其他 ESPHome Climate 標準選項也可以使用。目標溫度以 1 °C 為單位調整，可設定範圍會依所選協定限制。
 
@@ -234,7 +293,7 @@ climate:
 - **AC1 訊框傳送不完整**：先將 `remote_transmitter.non_blocking` 設為 `false`。
   AC1 訊框較長，完整範例已採用這項設定。
 - **Model B 電源狀態相反**：Model B 只能傳送 toggle，也無法讀回冷氣的實際電源狀態。
-  如果曾使用其他遙控器，請先讓 ESPHome 顯示的狀態與冷氣實際狀態重新對齊。
+  可設定選用的功率回饋來自動同步，或手動讓 ESPHome 顯示的狀態與冷氣實際狀態重新對齊。
 - **平台驗證失敗**：本元件需要 ESP32、Arduino framework，以及已設定的 `remote_transmitter`。
 
 ## 授權條款
