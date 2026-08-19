@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <inttypes.h>
 
 namespace esphome {
 namespace irremote_hitachi {
@@ -97,8 +98,8 @@ void IRRemoteHitachiClimate::dump_config() {
   if (this->power_feedback_enabled_()) {
     ESP_LOGCONFIG(TAG, "  Power ON threshold: %.1f W", this->power_on_threshold_);
     ESP_LOGCONFIG(TAG, "  Power OFF threshold: %.1f W", this->power_off_threshold_);
-    ESP_LOGCONFIG(TAG, "  Power ON delay: %u ms", this->power_on_delay_);
-    ESP_LOGCONFIG(TAG, "  Power OFF delay: %u ms", this->power_off_delay_);
+    ESP_LOGCONFIG(TAG, "  Power ON delay: %" PRIu32 " ms", this->power_on_delay_);
+    ESP_LOGCONFIG(TAG, "  Power OFF delay: %" PRIu32 " ms", this->power_off_delay_);
   }
 }
 
@@ -132,7 +133,7 @@ climate::ClimateTraits IRRemoteHitachiClimate::traits() {
   }
   traits.set_visual_target_temperature_step(1.0f);
   if (this->sensor_ != nullptr)
-    traits.set_supports_current_temperature(true);
+    traits.add_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE);
   return traits;
 }
 
